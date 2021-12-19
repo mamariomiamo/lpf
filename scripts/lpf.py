@@ -66,7 +66,7 @@ class TaskManager:
         self.quad_vel_filtered_pub = rospy.Publisher(
             'quadrotor_vel_filtered', TwistStamped, queue_size=1)
         self.pen_vel_filtered_pub = rospy.Publisher(
-            'quadrotor_vel_filtered', TwistStamped, queue_size=1)
+            'pendulum_vel_filtered', TwistStamped, queue_size=1)
         # ROS subscribers
         self.quad_pos_sub = rospy.Subscriber('mavros/vision_pose/pose',PoseStamped, self.quad_pos_callback)
         self.vel_sub = rospy.Subscriber('mavros/local_position/velocity_local',
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     pen_vx_filter = 0
     pen_vy_filter = 0
     pen_vz_filter = 0
-    cutoff_freq = 60
+    cutoff_freq = 40
     report_flag = 1
 
     while not rospy.is_shutdown():
@@ -141,16 +141,27 @@ if __name__ == '__main__':
             pen_vx = uavTask.pen_vel.twist.linear.x
             pen_vy = uavTask.pen_vel.twist.linear.y
             pen_vz = uavTask.pen_vel.twist.linear.z
+
             filter_a = dt/(dt + 1/(2*3.14*cutoff_freq))
+
             quad_vx_filter = (1-filter_a)*quad_vx_filter + filter_a * quad_vx
             quad_vy_filter = (1-filter_a)*quad_vy_filter + filter_a * quad_vy
             quad_vz_filter = (1-filter_a)*quad_vz_filter + filter_a * quad_vz
+
+            pen_vx_filter = (1-filter_a)*pen_vx_filter + filter_a * pen_vx
+            pen_vy_filter = (1-filter_a)*pen_vy_filter + filter_a * pen_vy
+            pen_vz_filter = (1-filter_a)*pen_vz_filter + filter_a * pen_vz
 
             uavTask.quad_vel_filtered.twist.linear.x = quad_vx_filter
             uavTask.quad_vel_filtered.twist.linear.y = quad_vy_filter
             uavTask.quad_vel_filtered.twist.linear.z = quad_vz_filter
             uavTask.quad_vel_filtered.header.stamp = rospy.Time.now()
-            uavTask.quad_vel_filtered_pub.publish(uavTask.quad_vel_filtered)
+
+            uavTask.pen_vel_filtered.twist.linear.x = pen_vx_filter
+            uavTask.pen_vel_filtered.twist.linear.y = pen_vy_filter
+            uavTask.pen_vel_filtered.twist.linear.z = pen_vz_filter
+            uavTask.pen_vel_filtered.header.stamp = rospy.Time.now()
+            uavTask.pen_vel_filtered_pub.publish(uavTask.pen_vel_filtered)
 
 
         rate.sleep()
