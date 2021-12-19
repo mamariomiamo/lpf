@@ -89,7 +89,7 @@ class TaskManager:
         self.pen_vel = data
 
 if __name__ == '__main__':
-    rospy.init_node('number_counter')
+    rospy.init_node('vicon_filter')
     print("hahaha")
     uavTask = TaskManager()
 
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     pen_vx_filter = 0
     pen_vy_filter = 0
     pen_vz_filter = 0
-    cutoff_freq = 40
+    cutoff_freq = 20
     report_flag = 1
 
     while not rospy.is_shutdown():
@@ -162,7 +162,7 @@ if __name__ == '__main__':
             uavTask.pen_vel_filtered.twist.linear.z = pen_vz_filter
             uavTask.pen_vel_filtered.header.stamp = rospy.Time.now()
             uavTask.pen_vel_filtered_pub.publish(uavTask.pen_vel_filtered)
-
+            uavTask.quad_vel_filtered_pub.publish(uavTask.quad_vel_filtered)
 
         rate.sleep()
     rospy.spin()
