@@ -33,6 +33,7 @@ class TaskManager:
         self.local_position = PoseStamped()
         self.attitude_sp = PoseStamped()
         self.pen_pose = PoseStamped()
+        self.pen_pose_filtered = PoseStamped()
         self.quad_vel = TwistStamped()
         self.quad_vel_filtered = TwistStamped()
         self.pen_vel_filtered = TwistStamped()
@@ -67,12 +68,15 @@ class TaskManager:
             'quadrotor_vel_filtered', TwistStamped, queue_size=1)
         self.pen_vel_filtered_pub = rospy.Publisher(
             'pendulum_vel_filtered', TwistStamped, queue_size=1)
+        self.pen_pos_filtered_pub = rospy.Publisher(
+            'pendulum_pos_filtered', PoseStamped, queue_size=1)
         # ROS subscribers
         self.quad_pos_sub = rospy.Subscriber('mavros/vision_pose/pose',PoseStamped, self.quad_pos_callback)
         self.vel_sub = rospy.Subscriber('mavros/local_position/velocity_local',
                                         TwistStamped, self.local_velocity_callback)  # local_velocity susbcriber
         self.quad_vel_sub = rospy.Subscriber('quadrotor_vel', TwistStamped, self.quad_vel_callback)
         self.pen_vel_sub = rospy.Subscriber('pendulum_vel',TwistStamped, self.pen_vel_callback)
+        self.pen_pos_sub = rospy.Subscriber('vrpn_client_node/pen/pose', PoseStamped, self.pen_pose_callback)
         #self.vel_global_sub = rospy.Subscriber('mavros/local_position/velocity_local', TwistStamped, self.global_velocity_callback)
         # send setpoints in seperate thread to better prevent failsafe
 
@@ -87,6 +91,9 @@ class TaskManager:
 
     def pen_vel_callback(self, data):
         self.pen_vel = data
+
+    def pen_pose_callback(self, data):
+        self.pen_pose = data
 
 if __name__ == '__main__':
     rospy.init_node('vicon_filter')
@@ -115,11 +122,13 @@ if __name__ == '__main__':
     pen_vx_filter = 0
     pen_vy_filter = 0
     pen_vz_filter = 0
-    cutoff_freq = 20
+    pen_px_filter = 0
+    pen_py_filter = 0
+    cutoff_freq = 10
     report_flag = 1
 
     while not rospy.is_shutdown():
-        rate = rospy.Rate(100)
+        rate = rospy.Rate(30) #filter publishing frequency
         if 1:
             if report_flag:
                print("filtering")
@@ -138,9 +147,13 @@ if __name__ == '__main__':
             quad_vx = uavTask.quad_vel.twist.linear.x
             quad_vy = uavTask.quad_vel.twist.linear.y
             quad_vz = uavTask.quad_vel.twist.linear.z
+
             pen_vx = uavTask.pen_vel.twist.linear.x
             pen_vy = uavTask.pen_vel.twist.linear.y
             pen_vz = uavTask.pen_vel.twist.linear.z
+
+            pen_px = uavTask.pen_pose.pose.position.x
+            pen_py = uavTask.pen_pose.pose.position.y
 
             filter_a = dt/(dt + 1/(2*3.14*cutoff_freq))
 
@@ -152,6 +165,9 @@ if __name__ == '__main__':
             pen_vy_filter = (1-filter_a)*pen_vy_filter + filter_a * pen_vy
             pen_vz_filter = (1-filter_a)*pen_vz_filter + filter_a * pen_vz
 
+            pen_px_filter = (1-filter_a)*pen_px_filter + filter_a * pen_px
+            pen_py_filter = (1-filter_a)*pen_py_filter + filter_a * pen_py
+
             uavTask.quad_vel_filtered.twist.linear.x = quad_vx_filter
             uavTask.quad_vel_filtered.twist.linear.y = quad_vy_filter
             uavTask.quad_vel_filtered.twist.linear.z = quad_vz_filter
@@ -161,8 +177,14 @@ if __name__ == '__main__':
             uavTask.pen_vel_filtered.twist.linear.y = pen_vy_filter
             uavTask.pen_vel_filtered.twist.linear.z = pen_vz_filter
             uavTask.pen_vel_filtered.header.stamp = rospy.Time.now()
+
+            uavTask.pen_pose_filtered.pose.position.x = pen_px_filter
+            uavTask.pen_pose_filtered.pose.position.y = pen_py_filter
+            uavTask.pen_pose_filtered.header.stamp = rospy.Time.now()
+
             uavTask.pen_vel_filtered_pub.publish(uavTask.pen_vel_filtered)
             uavTask.quad_vel_filtered_pub.publish(uavTask.quad_vel_filtered)
+            uavTask.pen_pos_filtered_pub.publish(uavTask.pen_pose_filtered)
 
         rate.sleep()
     rospy.spin()
